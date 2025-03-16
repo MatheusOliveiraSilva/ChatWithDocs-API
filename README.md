@@ -6,6 +6,8 @@ This repository is the code of my API that manage chat history memory for my cha
 
 ChatMemoryAPI is a simple yet powerful solution for managing chat history for chatbot applications. It provides endpoints to store, retrieve, and manage conversation data efficiently.
 
+The full API and deployment code is avaible on production branch.
+
 ## Technical Stack
 
 - **Backend**: Built with FastAPI, a modern Python web framework that offers high performance and easy-to-write API endpoints
