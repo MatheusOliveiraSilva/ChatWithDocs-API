@@ -88,9 +88,10 @@ def check_status():
     Simple endpoint to check if the API is running.
     Returns basic status information about the API.
     """
+
     return {
         "status": "online",
-        "service": "adaptative-rag-api",
+        "service": "chatbot-memory-api",
         "version": "1.0.0",
         "timestamp": datetime.datetime.utcnow().isoformat()
     }
