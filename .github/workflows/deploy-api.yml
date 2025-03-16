@@ -1,4 +1,4 @@
-name: Deploy para AWS ECS
+name: Deploy to AWS ECS
 
 on:
   push:
@@ -7,30 +7,35 @@ on:
 
 jobs:
   deploy:
-    name: Build, Push e Deploy
+    name: Build, Push and Deploy
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do código
+      - name: Code checkout
         uses: actions/checkout@v3
 
-      - name: Configurar credenciais AWS
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Login no AWS ECR
+      - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Construir e enviar imagem Docker para o ECR
+      - name: Build and push Docker image
+        env:
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         run: |
           IMAGE_TAG=$(date +%s)
-          docker buildx build --platform linux/amd64 -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REPOSITORY:$IMAGE_TAG
+          docker buildx create --use
+          docker buildx build --platform linux/amd64 -t $ECR_REPOSITORY:$IMAGE_TAG --push .
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-      - name: Atualizar Task Definition
+      - name: Update ECS Service for new deployment
+        env:
+          CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+          SERVICE_NAME: ${{ secrets.SERVICE_NAME }}
         run: |
           aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
