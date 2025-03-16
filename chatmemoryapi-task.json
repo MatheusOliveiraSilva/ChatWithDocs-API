@@ -1,0 +1,58 @@
+{
+    "family": "chatmemoryapi-task",
+    "executionRoleArn": "arn:aws:iam::248189927293:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+      {
+        "name": "db",
+        "image": "postgres:15",
+        "cpu": 256,
+        "memory": 512,
+        "essential": false,
+        "environment": [
+          { "name": "POSTGRES_USER", "value": "matheus" },
+          { "name": "POSTGRES_PASSWORD", "value": "password" },
+          { "name": "POSTGRES_DB", "value": "users_chat_history" }
+        ],
+        "portMappings": [
+          {
+            "containerPort": 5432,
+            "hostPort": 5432,
+            "protocol": "tcp"
+          }
+        ]
+      },
+      {
+        "name": "api",
+        "image": "248189927293.dkr.ecr.us-east-1.amazonaws.com/chatmemoryapi:latest",
+        "cpu": 256,
+        "memory": 512,
+        "essential": true,
+        "environment": [
+          {
+            "name": "DATABASE_URL",
+            "value": "postgresql://matheus:password@adaptative-rag-db.ckzkqy0wyi4h.us-east-1.rds.amazonaws.com:5432/users_chat_history"
+          }
+        ],
+        "portMappings": [
+          {
+            "containerPort": 8000,
+            "hostPort": 8000,
+            "protocol": "tcp"
+          }
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/chatmemoryapi-task",
+            "awslogs-region": "us-east-1",
+            "awslogs-stream-prefix": "ecs"
+          }
+        }
+      }
+    ],
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "512",
+    "memory": "1024"
+  }
+  
