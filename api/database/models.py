@@ -3,11 +3,8 @@ from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import JSONB
 import datetime
-import os
-from dotenv import load_dotenv
-from pathlib import Path
 
-from api.db_config import DATABASE_URL
+from api.config.database import DATABASE_URL
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
@@ -37,12 +34,12 @@ class ConversationThread(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     thread_id = Column(String(255), nullable=False)
     thread_name = Column(String(255), nullable=False)
-    # Use o tipo de JSON apropriado com base no banco de dados
     messages = Column(JsonType, default=[])
+    # model_id = Column(String(50), default="gpt-4o")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_used = Column(DateTime, default=datetime.datetime.utcnow)
     
     user = relationship("User", back_populates="conversations")
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine) 

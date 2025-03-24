@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 # Carrega as variáveis de ambiente
-root = Path(__file__).parent.parent  # Vai para o diretório raiz do projeto
+root = Path(__file__).parent.parent.parent  # Vai para o diretório raiz do projeto
 load_dotenv(root / ".env")
 
 # Configurações AWS
