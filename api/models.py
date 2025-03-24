@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.postgresql import JSONB
@@ -15,6 +15,12 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
+
+# Determinar qual tipo de JSON usar com base no DATABASE_URL
+if DATABASE_URL and DATABASE_URL.startswith('postgresql'):
+    JsonType = JSONB
+else:
+    JsonType = JSON
 
 class User(Base):
     __tablename__ = "users"
@@ -34,8 +40,8 @@ class ConversationThread(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     thread_id = Column(String(255), nullable=False)
     thread_name = Column(String(255), nullable=False)
-    # Use JSON para SQLite ou JSONB para PostgreSQL
-    messages = Column(JSONB, default=[])
+    # Use o tipo de JSON apropriado com base no banco de dados
+    messages = Column(JsonType, default=[])
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_used = Column(DateTime, default=datetime.datetime.utcnow)
     

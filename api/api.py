@@ -67,20 +67,20 @@ def get_current_user(
     db: Session = Depends(get_db)
 ):
     """
-    Verifica se o usuário está autenticado por um token de autorização,
-    user_id ou user_email em cookies
+    Verifies if the user is authenticated by an authorization token,
+    user_id or user_email in cookies
     """
     if authorization:
-        # Verifica bearer token (implementação simplificada)
+        # Verify bearer token (simplified implementation)
         scheme, token = authorization.split()
         if scheme.lower() != 'bearer':
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token de autorização inválido"
+                detail="Invalid authorization token"
             )
         
-        # Aqui você poderia validar o token JWT do Auth0
-        # por simplicidade, estamos assumindo que é um user_id
+        # Here you could validate the Auth0 JWT token
+        # for simplicity, we're assuming it's a user_id
         try:
             user_id = int(token)
             user = db.query(User).filter(User.id == user_id).first()
@@ -89,12 +89,12 @@ def get_current_user(
         except:
             pass
             
-        # Se não é um user_id, talvez seja um email
+        # If it's not a user_id, maybe it's an email
         user = db.query(User).filter(User.email == token).first()
         if user:
             return user
             
-    # Verifica cookies
+    # Check cookies
     if user_id:
         user = db.query(User).filter(User.id == user_id).first()
         if user:
@@ -107,7 +107,7 @@ def get_current_user(
             
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Não autenticado"
+        detail="Not authenticated"
     )
 
 # -------------------------------------------------------------------
@@ -129,7 +129,7 @@ class Auth0TokenResponse(BaseModel):
 
 @app.post("/auth/login-simple")
 def login_simple(login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    """Login simplificado com nome de usuário e opcionalmente email"""
+    """Simplified login with username and optionally email"""
     
     username = login_data.username
     email = login_data.email or f"{username}@example.com"
@@ -137,10 +137,10 @@ def login_simple(login_data: LoginRequest, response: Response, db: Session = Dep
     # Create a placeholder sub (normally provided by Auth0)
     sub = f"local|{username}"
     
-    # Procurar usuário pelo email
+    # Search for user by email
     user = db.query(User).filter(User.email == email).first()
     
-    # Criar usuário se não existir
+    # Create user if it doesn't exist
     if not user:
         user = User(
             sub=sub,
@@ -154,11 +154,11 @@ def login_simple(login_data: LoginRequest, response: Response, db: Session = Dep
         db.commit()
         db.refresh(user)
     else:
-        # Atualizar último login
+        # Update last login
         user.last_login = datetime.datetime.utcnow()
         db.commit()
     
-    # Definir cookies para autenticação
+    # Set cookies for authentication
     response.set_cookie(
         key="user_id",
         value=str(user.id),
@@ -175,7 +175,7 @@ def login_simple(login_data: LoginRequest, response: Response, db: Session = Dep
         samesite="lax"
     )
     
-    # Retornar informações do usuário
+    # Return user information
     return {
         "user": {
             "id": user.id,
@@ -187,7 +187,7 @@ def login_simple(login_data: LoginRequest, response: Response, db: Session = Dep
 @app.get("/auth/login")
 async def auth_login():
     """
-    Endpoint que redireciona para a página de login do Auth0
+    Endpoint that redirects to the Auth0 login page
     """
     return RedirectResponse(
         f"https://{AUTH0_DOMAIN}/authorize"
@@ -200,7 +200,7 @@ async def auth_login():
 @app.get("/auth/callback")
 async def auth_callback(request: Request, code: str, db: Session = Depends(get_db)):
     """
-    Callback handler para processar o código de autorização do Auth0 e criar sessão
+    Callback handler to process the Auth0 authorization code and create session
     """
     # Exchange authorization code for tokens
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
@@ -216,7 +216,7 @@ async def auth_callback(request: Request, code: str, db: Session = Depends(get_d
     if token_response.status_code != 200:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Falha na autenticação com Auth0"
+            detail="Authentication failed with Auth0"
         )
     
     token_data = token_response.json()
@@ -227,7 +227,7 @@ async def auth_callback(request: Request, code: str, db: Session = Depends(get_d
     except requests.RequestException:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Falha ao obter informações do usuário"
+            detail="Failed to get user information"
         )
     
     # Extract user data
@@ -286,8 +286,8 @@ async def auth_token(
     db: Session = Depends(get_db)
 ):
     """
-    Endpoint para trocar o código de autorização por tokens e criar uma sessão
-    (Implementação alternativa para SPAs que não usam redirecionamento)
+    Endpoint to exchange the authorization code for tokens and create a session
+    (Alternative implementation for SPAs that don't use redirection)
     """
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
     token_payload = {
@@ -302,7 +302,7 @@ async def auth_token(
     if token_response.status_code != 200:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Falha na autenticação com Auth0"
+            detail="Authentication failed with Auth0"
         )
     
     token_data = token_response.json()
@@ -313,7 +313,7 @@ async def auth_token(
     except requests.RequestException:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Falha ao obter informações do usuário"
+            detail="Failed to get user information"
         )
     
     # Extract user data
@@ -357,15 +357,15 @@ async def auth_token(
 
 @app.get("/auth/logout")
 async def logout(response: Response):
-    """Endpoint para fazer logout limpando os cookies"""
+    """Endpoint to logout by clearing cookies"""
     response.delete_cookie("user_id")
     response.delete_cookie("user_email")
     
-    return {"message": "Logout bem sucedido"}
+    return {"message": "Logout successful"}
 
 @app.get("/auth/me")
 async def get_user_info(user: User = Depends(get_current_user)):
-    """Endpoint para obter informações do usuário autenticado"""
+    """Endpoint to get authenticated user information"""
     return {
         "id": user.id,
         "name": user.name,
@@ -413,7 +413,7 @@ def add_conversation(
     db: Session = Depends(get_db)
 ):
     """
-    Cria uma nova conversa para o usuário autenticado.
+    Creates a new conversation for the authenticated user.
     """
     initial_messages = [(data.first_message_role, data.first_message_content)]
 
@@ -445,7 +445,7 @@ def update_conversation(
     db: Session = Depends(get_db)
 ):
     """
-    Atualiza a conversa do usuário autenticado.
+    Updates the conversation of the authenticated user.
     """
     conversation = db.query(ConversationThread).filter(
         ConversationThread.user_id == user.id,
@@ -453,7 +453,7 @@ def update_conversation(
     ).first()
 
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversa não encontrada")
+        raise HTTPException(status_code=404, detail="Conversation not found")
 
     conversation.messages = data.messages
     conversation.last_used = datetime.datetime.utcnow()
@@ -476,7 +476,7 @@ def get_conversations(
     db: Session = Depends(get_db)
 ):
     """
-    Recupera todas as conversas do usuário autenticado.
+    Retrieves all conversations for the authenticated user.
     """
     convs = db.query(ConversationThread).filter(
         ConversationThread.user_id == user.id
@@ -504,7 +504,7 @@ def get_conversation(
     db: Session = Depends(get_db)
 ):
     """
-    Recupera uma conversa específica do usuário autenticado.
+    Retrieves a specific conversation for the authenticated user.
     """
     conversation = db.query(ConversationThread).filter(
         ConversationThread.user_id == user.id,
@@ -512,7 +512,7 @@ def get_conversation(
     ).first()
     
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversa não encontrada")
+        raise HTTPException(status_code=404, detail="Conversation not found")
         
     return {
         "id": conversation.id,
