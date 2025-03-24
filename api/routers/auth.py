@@ -4,7 +4,7 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status, Cookie
 from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
-import jwt
+from jose import jwt
 
 from api.database.session import get_db
 from api.database.models import User
