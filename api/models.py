@@ -37,8 +37,8 @@ class ConversationThread(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     thread_id = Column(String(255), nullable=False)
     thread_name = Column(String(255), nullable=False)
-    # Use o tipo de JSON apropriado com base no banco de dados
     messages = Column(JsonType, default=[])
+    # model_id = Column(String(50), default="gpt-4o")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_used = Column(DateTime, default=datetime.datetime.utcnow)
     
