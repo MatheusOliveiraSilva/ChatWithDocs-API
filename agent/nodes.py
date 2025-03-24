@@ -20,16 +20,6 @@ class SimpleAssistantNodes:
         """
         print(f"--- Generating answer ---")
 
-        # If no model configuration is provided, use the default one. This will almost never happen, thats for tests on curl.
-        if "llm_config" not in state:
-            state["llm_config"] = {
-                "model_id": "gpt-4o",
-                "provider": "openai",
-                "temperature": 0,
-                "reasoning_effort": "low",
-                "think_mode": False
-            }
-
         model_configuration = state["llm_config"]
         
         llm = ModelConfig.get_llm(**model_configuration)

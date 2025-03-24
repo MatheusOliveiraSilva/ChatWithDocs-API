@@ -8,7 +8,7 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 DEFAULT_TEMPERATURE = 0.7
-DEFAULT_THINK_MODE = False
+DEFAULT_THINK_MODE = True
 DEFAULT_REASONING_EFFORT = "low"
 
 class ModelConfig:
@@ -40,7 +40,7 @@ class ModelConfig:
     @staticmethod
     def get_anthropic_llm(model_id: str, think_mode: bool = DEFAULT_THINK_MODE, temperature: float = DEFAULT_TEMPERATURE):
         if model_id == "claude-3-7-sonnet":
-            return ChatAnthropic(model="claude-3-7-sonnet-latest", temperature=1, think_mode=think_mode)  
+            return ChatAnthropic(model="claude-3-7-sonnet-latest", temperature=1, max_tokens=2048, thinking={"type": "enabled", "budget_tokens": 1024} if think_mode else {"type": "disabled"})  
         elif model_id == "claude-3-5-haiku":
             return ChatAnthropic(model="claude-3-5-haiku-20241022", temperature=temperature)
         elif model_id == "claude-3-5-sonnet":
