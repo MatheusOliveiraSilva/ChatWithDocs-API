@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from api.database.session import get_db
 from api.database.models import User, ConversationThread
 from api.utils.dependencies import get_current_user
+from api.utils.streaming import LLMStreamer
 from agent.graph import SimpleAssistantGraph
 
 # Inicializar o grafo do agente
@@ -40,10 +41,13 @@ def query_stream(
     Endpoint simplificado para streaming de mensagens.
     Recebe a mensagem do usuário e o histórico da conversa, e envia a resposta em chunks.
     O frontend é responsável por salvar o histórico completo.
+    
+    Suporta casos especiais como o Claude 3.7 Sonnet com thinking mode.
     """
     # Inicializar o agente
     agent = GRAPH.get_agent()
     
+    # Preparar as mensagens para o LLM
     messages = []
     
     # Adicionar histórico se fornecido
@@ -51,17 +55,13 @@ def query_stream(
         for msg in request.previous_messages:
             if msg[0] == "user":
                 messages.append(HumanMessage(content=msg[1]))
-            elif msg[0] == "assistant":
+            elif msg[0] in ["assistant", "thought"]:
                 messages.append(AIMessage(content=msg[1]))
     
     # Adicionar a mensagem atual
     messages.append(HumanMessage(content=request.input))
-
-    state_snapshot = agent.get_state({"configurable": {"thread_id": request.thread_id}}).values
     
-    if 'messages' not in state_snapshot:
-        state_snapshot['messages'] = messages
-    
+    # Configurar o LLM
     llm_config = {}
     if request.llm_config:
         llm_config = {
@@ -72,35 +72,13 @@ def query_stream(
             "temperature": request.llm_config.temperature
         }
     
-    # Configuração para o streaming
-    config = {
-        "thread_id": request.thread_id,
-    }
-    
-    # Função geradora para streaming
-    def event_generator():
-        try:
-            # Stream direto do LangGraph
-            for chunk, meta in agent.stream(
-                {"messages": messages, "llm_config": llm_config}, 
-                stream_mode="messages", 
-                config={"configurable": config}
-            ):
-                # Extrair conteúdo e enviar como SSE
-                if hasattr(chunk, "content"):
-                    content = chunk.content
-                    
-                    # Formato de Server-Sent Events
-                    payload = {"content": content, "meta": meta}
-                    yield f"data: {json.dumps(payload)}\n\n"
-                    
-        except Exception as e:
-            # Em caso de erro durante o streaming
-            error_payload = {"error": str(e), "error_type": type(e).__name__}
-            yield f"data: {json.dumps(error_payload)}\n\n"
-    
-    # Retornar StreamingResponse
+    # Usar a função utilitária para streaming que lida com diferentes formatos de modelo
     return StreamingResponse(
-        event_generator(),
+        LLMStreamer.stream_response(
+            agent=agent,
+            messages=messages,
+            llm_config=llm_config,
+            thread_id=request.thread_id
+        ),
         media_type="text/event-stream"
     )
