@@ -551,3 +551,26 @@ def get_conversation(
         "created_at": conversation.created_at,
         "last_used": conversation.last_used
     }
+
+@app.delete("/conversation/{thread_id}")
+def delete_conversation(
+    thread_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Deletes a specific conversation for the authenticated user.
+    """
+    conversation = db.query(ConversationThread).filter(
+        ConversationThread.user_id == user.id,
+        ConversationThread.thread_id == thread_id
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Delete the conversation
+    db.delete(conversation)
+    db.commit()
+    
+    return {"message": "Conversation deleted successfully"}
