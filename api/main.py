@@ -10,7 +10,7 @@ from api.routers import auth, conversation, agent
 # Inicializar aplicação FastAPI
 app = FastAPI(
     title=APP_NAME,
-    description="API para o sistema ChatWithDocs, permitindo autenticação, gerenciamento de conversas e interação com agentes de IA.",
+    description="API for the ChatWithDocs system, enabling authentication, conversation management, and interaction with AI agents.",
     version=APP_VERSION
 )
 
