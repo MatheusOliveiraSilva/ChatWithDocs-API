@@ -24,25 +24,22 @@ class User(Base):
     name = Column(String(255), nullable=True)
     picture = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-class UserSession(Base):
-    __tablename__ = "user_sessions"
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String(255), unique=True, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-    user = relationship("User", backref="sessions")
+    last_login = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    conversations = relationship("ConversationThread", back_populates="user", cascade="all, delete-orphan")
 
 class ConversationThread(Base):
     __tablename__ = "conversation_threads"
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(String(255), ForeignKey("user_sessions.session_id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     thread_id = Column(String(255), nullable=False)
     thread_name = Column(String(255), nullable=False)
+    # Use JSON para SQLite ou JSONB para PostgreSQL
     messages = Column(JSONB, default=[])
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_used = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    user = relationship("User", back_populates="conversations")
 
 def init_db():
     Base.metadata.create_all(bind=engine)
