@@ -185,20 +185,30 @@ def login_simple(login_data: LoginRequest, response: Response, db: Session = Dep
     }
 
 @app.get("/auth/login")
-async def auth_login():
+async def auth_login(redirect_uri: Optional[str] = None):
     """
     Endpoint that redirects to the Auth0 login page
     """
+    # Store the redirect_uri in the query params to be used later in the callback
+    callback_url = AUTH0_CALLBACK_URL
+    if redirect_uri:
+        callback_url = f"{AUTH0_CALLBACK_URL}?redirect_uri={redirect_uri}"
+    
     return RedirectResponse(
         f"https://{AUTH0_DOMAIN}/authorize"
         f"?response_type=code"
         f"&client_id={AUTH0_CLIENT_ID}"
-        f"&redirect_uri={AUTH0_CALLBACK_URL}"
+        f"&redirect_uri={callback_url}"
         f"&scope=openid profile email"
     )
 
 @app.get("/auth/callback")
-async def auth_callback(request: Request, code: str, db: Session = Depends(get_db)):
+async def auth_callback(
+    request: Request, 
+    code: str, 
+    redirect_uri: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     """
     Callback handler to process the Auth0 authorization code and create session
     """
@@ -259,8 +269,14 @@ async def auth_callback(request: Request, code: str, db: Session = Depends(get_d
         db.commit()
     
     # Set cookies for authentication
-    frontend_url = os.getenv("FRONTEND_URL", "/")
-    response = RedirectResponse(url=f"{frontend_url}?user_id={user.id}")
+    # Use the provided redirect_uri if available, otherwise fall back to environment variable
+    frontend_url = redirect_uri or os.getenv("FRONTEND_URL", "")
+    
+    # Generate a JWT token
+    token = str(user.id)  # Simplificado para este exemplo
+    
+    # For SPA applications, it's better to redirect to a callback URL and include the token as a query parameter
+    response = RedirectResponse(url=f"{frontend_url}?token={token}")
     
     response.set_cookie(
         key="user_id",

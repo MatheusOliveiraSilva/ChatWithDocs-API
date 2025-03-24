@@ -7,10 +7,7 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-root = Path(__file__).parent
-load_dotenv(root / ".env")
-
-DATABASE_URL = os.getenv("DATABASE_URL")
+from api.db_config import DATABASE_URL
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
