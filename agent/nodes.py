@@ -20,7 +20,7 @@ class SimpleAssistantNodes:
         """
         print(f"--- Generating answer ---")
 
-        model_configuration = state["model_config"]
+        model_configuration = state["llm_config"]
         
         llm = ModelConfig.get_llm(**model_configuration)
 

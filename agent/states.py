@@ -2,7 +2,7 @@ from typing import List, Annotated, Literal
 from typing_extensions import TypedDict
 from langgraph.graph.message import add_messages
 
-class ModelConfiguration(TypedDict):
+class ModelConfiguration:
     model_id: str
     provider: str
     reasoning_effort: Literal["low", "medium", "high"]
@@ -18,4 +18,4 @@ class GraphState(TypedDict):
     """
 
     messages: Annotated[List, add_messages]
-    model_config: ModelConfiguration
+    llm_config: ModelConfiguration

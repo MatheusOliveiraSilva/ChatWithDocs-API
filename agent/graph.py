@@ -11,7 +11,7 @@ class SimpleAssistantGraph:
         self.Graph = StateGraph(GraphState)
 
         self.Graph = self.setup_nodes(self.Graph)
-        
+
         self.Graph = self.setup_edges(self.Graph)
 
         self.agent = self.Graph.compile(checkpointer=MemorySaver())
