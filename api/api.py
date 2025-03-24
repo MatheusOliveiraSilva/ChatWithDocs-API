@@ -185,7 +185,8 @@ def login_simple(login_data: LoginRequest, response: Response, db: Session = Dep
     }
 
 @app.get("/auth/login")
-async def auth_login(redirect_uri: Optional[str] = None):
+async def auth_login(redirect_uri: Optional[str] = None, prompt: Optional[str] = None, 
+                    force_login: Optional[bool] = None, ui_locales: Optional[str] = None):
     """
     Endpoint that redirects to the Auth0 login page
     """
@@ -194,13 +195,24 @@ async def auth_login(redirect_uri: Optional[str] = None):
     if redirect_uri:
         callback_url = f"{AUTH0_CALLBACK_URL}?redirect_uri={redirect_uri}"
     
-    return RedirectResponse(
+    # Construir URL com parâmetros adicionais se fornecidos
+    auth_url = (
         f"https://{AUTH0_DOMAIN}/authorize"
         f"?response_type=code"
         f"&client_id={AUTH0_CLIENT_ID}"
         f"&redirect_uri={callback_url}"
         f"&scope=openid profile email"
     )
+    
+    # Adicionar parâmetros opcionais
+    if prompt:
+        auth_url += f"&prompt={prompt}"
+    if force_login:
+        auth_url += f"&force_login=true"
+    if ui_locales:
+        auth_url += f"&ui_locales={ui_locales}"
+    
+    return RedirectResponse(auth_url)
 
 @app.get("/auth/callback")
 async def auth_callback(
