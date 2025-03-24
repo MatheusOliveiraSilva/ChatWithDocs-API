@@ -44,7 +44,6 @@ def query_stream(
     # Inicializar o agente
     agent = GRAPH.get_agent()
     
-    # Preparar as mensagens para o LLM
     messages = []
     
     # Adicionar histórico se fornecido
@@ -57,8 +56,12 @@ def query_stream(
     
     # Adicionar a mensagem atual
     messages.append(HumanMessage(content=request.input))
+
+    state_snapshot = agent.get_state({"configurable": {"thread_id": request.thread_id}}).values
     
-    # Configurar o LLM
+    if 'messages' not in state_snapshot:
+        state_snapshot['messages'] = messages
+    
     llm_config = {}
     if request.llm_config:
         llm_config = {
@@ -71,7 +74,7 @@ def query_stream(
     
     # Configuração para o streaming
     config = {
-        "thread_id": request.thread_id or f"temp_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "thread_id": request.thread_id,
     }
     
     # Função geradora para streaming
