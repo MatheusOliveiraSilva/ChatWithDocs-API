@@ -10,3 +10,7 @@ authlib
 python-jose
 email-validator
 boto3
+langgraph
+langchain
+langchain-openai
+langchain-anthropic
