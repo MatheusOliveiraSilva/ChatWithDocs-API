@@ -14,3 +14,6 @@ langgraph
 langchain
 langchain-openai
 langchain-anthropic
+langchain-community
+langchain-pinecone
+python-multipart

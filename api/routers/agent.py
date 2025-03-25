@@ -40,9 +40,6 @@ def query_stream(
     """
     Endpoint simplificado para streaming de mensagens.
     Recebe a mensagem do usuário e o histórico da conversa, e envia a resposta em chunks.
-    O frontend é responsável por salvar o histórico completo.
-    
-    Suporta casos especiais como o Claude 3.7 Sonnet com thinking mode.
     """
     # Inicializar o agente
     agent = GRAPH.get_agent()

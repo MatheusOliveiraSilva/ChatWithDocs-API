@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.config.settings import MIDDLEWARE_SECRET_KEY, CORS_ORIGINS, CORS_METHODS, CORS_HEADERS, APP_NAME, APP_VERSION
 from api.database.models import init_db
-from api.routers import auth, conversation, agent
+from api.routers import auth, conversation, agent, document
 
 # Inicializar aplicação FastAPI
 app = FastAPI(
@@ -36,6 +36,7 @@ init_db()
 app.include_router(auth.router)
 app.include_router(conversation.router)
 app.include_router(agent.router)
+app.include_router(document.router)
 
 @app.get("/status")
 def check_status():
