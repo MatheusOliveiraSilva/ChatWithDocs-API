@@ -17,3 +17,7 @@ langchain-anthropic
 langchain-community
 langchain-pinecone
 python-multipart
+pinecone-client
+PyPDF2
+python-docx
+langchain-text-splitters
