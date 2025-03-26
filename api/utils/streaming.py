@@ -56,38 +56,50 @@ class LLMStreamer:
     @staticmethod
     def stream_response(
         agent,
-        messages: List[Union[HumanMessage, AIMessage]],
+        agent_input: Dict[str, Any] = None,
+        agent_config: Dict[str, Any] = None,
+        # Parâmetros legados para compatibilidade
+        messages: List[Union[HumanMessage, AIMessage]] = None,
         llm_config: Dict[str, Any] = None,
         thread_id: str = None
     ) -> Generator[str, None, None]:
         """
         Função unificada para streaming de respostas de modelos de linguagem.
-        Envia todos os chunks, incluindo o pensamento (thinking) do modelo.
+        Suporta tanto o formato antigo (messages, llm_config, thread_id) quanto
+        o novo formato RAG (agent_input, agent_config).
         
         Args:
-            agent: O agente LangChain
-            messages: Lista de mensagens (histórico + input atual)
-            llm_config: Configuração do modelo (provider, model_id, etc)
-            thread_id: ID da thread para persistência
+            agent: O agente LangChain/LangGraph
+            agent_input: Input completo para o agente no formato RAG
+            agent_config: Configuração do agente
+            messages: (Legado) Lista de mensagens (histórico + input atual)
+            llm_config: (Legado) Configuração do modelo (provider, model_id, etc)
+            thread_id: (Legado) ID da thread para persistência
             
         Returns:
             Generator que produz chunks de resposta formatados para SSE
         """
-        if not llm_config:
-            llm_config = {}
+        # Compatibilidade com formato antigo (formato legado)
+        if agent_input is None and messages is not None:
+            agent_input = {
+                "messages": messages,
+                "llm_config": llm_config or {}
+            }
             
+        if agent_config is None and thread_id is not None:
+            agent_config = {"configurable": {"thread_id": thread_id}}
+            
+        # Garantir que temos um input válido
+        if agent_input is None:
+            agent_input = {"messages": []}
+            
+        # Extrair config do LLM para comportamentos específicos de modelo
+        llm_config = agent_input.get("llm_config", {})
+        
         # Configurações básicas
         provider = llm_config.get("provider", "openai")
         model_id = llm_config.get("model_id", "gpt-4o")
         think_mode = llm_config.get("think_mode", False)
-        
-        # Configuração para o streaming
-        config = {
-            "thread_id": thread_id or f"temp_{str(hash(messages[0].content) if messages else '')}"
-        }
-        
-        # Adicionar configurações do LLM
-        config.update(llm_config)
         
         # Detectar se é Claude 3.7 com thinking mode
         is_claude_37_thinking = (
@@ -97,12 +109,9 @@ class LLMStreamer:
         )
         
         try:
-            # Converter config para o formato esperado pelo agent
-            agent_config = {"configurable": config}
-            
             # Stream da resposta
             for chunk, meta in agent.stream(
-                {"messages": messages, "llm_config": llm_config}, 
+                agent_input, 
                 stream_mode="messages", 
                 config=agent_config
             ):
