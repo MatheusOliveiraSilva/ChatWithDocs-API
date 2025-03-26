@@ -2,6 +2,7 @@ import os
 import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
+from langchain_pinecone import PineconeVectorStore
 
 from api.database.models import Document, DocumentChunk, User, ConversationThread
 from api.config.settings import S3_BUCKET_NAME
@@ -94,23 +95,65 @@ class DocumentIngestor:
             # Indexar chunks no Pinecone
             logger.info(f"Indexando {len(chunks)} chunks no Pinecone (index={index_name}, namespace={namespace})")
             
-            # O método index_chunks sanitiza internamente os nomes
-            vector_ids = self.indexer.index_chunks(chunks, index_name, namespace)
-            
             # Obter nomes sanitizados para referência
             sanitized_index = self.indexer.sanitize_index_name(index_name)
             sanitized_namespace = self.indexer.sanitize_namespace(namespace)
             
-            # Salvar chunks no banco de dados
-            for i, chunk in enumerate(chunks):
-                db_chunk = DocumentChunk(
-                    document_id=document.id,
-                    chunk_index=i,
-                    content=chunk["content"],
-                    chunk_metadata=chunk["metadata"],
-                    vector_id=vector_ids[i] if i < len(vector_ids) else None
+            # Processar chunks em lotes para salvar gradualmente no banco
+            BATCH_SIZE = 10
+            total_chunks = len(chunks)
+            
+            for i in range(0, total_chunks, BATCH_SIZE):
+                # Pegar o próximo lote de chunks
+                batch_chunks = chunks[i:i+BATCH_SIZE]
+                
+                # Extrair textos e metadados para o batch atual
+                batch_texts = [chunk["content"] for chunk in batch_chunks]
+                batch_metadatas = [chunk["metadata"] for chunk in batch_chunks]
+                
+                # Gerar IDs únicos para o batch
+                batch_ids = [f"{sanitized_namespace}_{meta['document_id']}_{meta['chunk_index']}" for meta in batch_metadatas]
+                
+                # Indexar o batch atual no Pinecone
+                logger.info(f"Indexando batch {i//BATCH_SIZE + 1}/{(total_chunks+BATCH_SIZE-1)//BATCH_SIZE}: {len(batch_chunks)} chunks")
+                
+                # Criar vetores para este batch
+                vector_store = PineconeVectorStore(
+                    index=self.indexer.pc.Index(sanitized_index),
+                    embedding=self.indexer.embeddings,
+                    pinecone_api_key=self.indexer.api_key,
+                    namespace=sanitized_namespace
                 )
-                self.db.add(db_chunk)
+                
+                # Adicionar documentos do batch atual
+                vector_store.add_texts(
+                    texts=batch_texts,
+                    metadatas=batch_metadatas,
+                    ids=batch_ids
+                )
+                
+                # Salvar os chunks processados no banco em tempo real
+                for j, chunk in enumerate(batch_chunks):
+                    db_chunk = DocumentChunk(
+                        document_id=document.id,
+                        chunk_index=int(chunk["metadata"]["chunk_index"]),
+                        content=chunk["content"],
+                        chunk_metadata=chunk["metadata"],
+                        vector_id=batch_ids[j]
+                    )
+                    self.db.add(db_chunk)
+                
+                # Commit parcial para salvar os chunks deste batch
+                self.db.commit()
+                
+                # Atualizar progresso no documento
+                progress = min(100, int((i + len(batch_chunks)) / total_chunks * 100))
+                document.doc_metadata.update({
+                    "indexing_progress": progress,
+                    "chunks_indexed": i + len(batch_chunks),
+                    "total_chunks": total_chunks
+                })
+                self.db.commit()
             
             # Atualizar status do documento
             document.is_processed = True
@@ -119,7 +162,10 @@ class DocumentIngestor:
             # Armazenar informações do índice nos metadados
             document.doc_metadata.update({
                 "pinecone_index": sanitized_index,
-                "pinecone_namespace": sanitized_namespace
+                "pinecone_namespace": sanitized_namespace,
+                "indexing_progress": 100,
+                "chunks_indexed": total_chunks,
+                "total_chunks": total_chunks
             })
             
             self.db.commit()
@@ -127,7 +173,7 @@ class DocumentIngestor:
             return {
                 "status": "success",
                 "document_id": document.id,
-                "chunks_processed": len(chunks),
+                "chunks_processed": total_chunks,
                 "index_name": sanitized_index,
                 "namespace": sanitized_namespace
             }

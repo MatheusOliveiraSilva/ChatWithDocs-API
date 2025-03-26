@@ -16,3 +16,5 @@ api/routers/__pycache__/
 api/utils/__pycache__/
 
 api/schemas/__pycache__/
+
+ingestion/__pycache__/
