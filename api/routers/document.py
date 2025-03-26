@@ -1,6 +1,7 @@
 import datetime
 import os
 import uuid
+import logging
 import boto3
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
@@ -18,8 +19,13 @@ from api.config.settings import (
     S3_SECRET_KEY,
     S3_ENDPOINT_URL
 )
+from ingestion.ingestor import DocumentIngestor
 
 router = APIRouter(prefix="/document", tags=["Documents"])
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configurar cliente S3
 s3_client = boto3.client(
@@ -224,7 +230,8 @@ def delete_document(
     db: Session = Depends(get_db)
 ):
     """
-    Remove um documento do S3 e do banco de dados.
+    Remove um documento do S3, do Pinecone e do banco de dados.
+    Garante que todos os chunks associados sejam excluídos.
     """
     document = db.query(Document).filter(
         Document.id == document_id,
@@ -234,18 +241,36 @@ def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
     
-    # Excluir do S3
     try:
-        s3_client.delete_object(
-            Bucket=S3_BUCKET_NAME,
-            Key=document.s3_path
-        )
+        # 1. Limpar vetores do Pinecone (se o documento foi indexado)
+        if document.is_processed:
+            logger.info(f"Removendo vetores do documento {document_id} do Pinecone")
+            ingestor = DocumentIngestor(db_session=db)
+            try:
+                ingestor.delete_document_from_index(document_id)
+            except Exception as e:
+                logger.error(f"Erro ao excluir vetores do Pinecone: {str(e)}")
+                # Continuar mesmo se houver erro na limpeza do Pinecone
+        
+        # 2. Excluir do S3
+        logger.info(f"Excluindo documento {document_id} do S3: {document.s3_path}")
+        try:
+            s3_client.delete_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=document.s3_path
+            )
+        except Exception as e:
+            logger.error(f"Erro ao excluir do S3: {str(e)}")
+            # Mesmo se a exclusão do S3 falhar, continuamos a excluir do banco de dados
+        
+        # 3. Excluir do banco de dados (isso vai excluir automaticamente os chunks via CASCADE)
+        logger.info(f"Excluindo documento {document_id} do banco de dados")
+        db.delete(document)
+        db.commit()
+        
+        return None
+    
     except Exception as e:
-        # Mesmo se a exclusão do S3 falhar, continuamos a excluir do banco de dados
-        print(f"Erro ao excluir do S3: {str(e)}")
-    
-    # Excluir do banco de dados
-    db.delete(document)
-    db.commit()
-    
-    return None 
+        db.rollback()
+        logger.error(f"Erro ao excluir documento {document_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao excluir documento: {str(e)}") 

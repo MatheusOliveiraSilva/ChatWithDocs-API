@@ -190,7 +190,7 @@ class DocumentIngestor:
     
     def delete_document_from_index(self, document_id: int) -> Dict[str, Any]:
         """
-        Remove um documento do índice Pinecone.
+        Remove um documento do índice Pinecone, garantindo que todos os chunks sejam excluídos.
         
         Args:
             document_id: ID do documento a ser removido
@@ -203,6 +203,13 @@ class DocumentIngestor:
         
         if not document:
             raise ValueError(f"Documento não encontrado: {document_id}")
+        
+        # Resultado padrão com informações de sucesso
+        result = {
+            "status": "success",
+            "document_id": document.id,
+            "chunks_removed": 0
+        }
         
         try:
             # Verificar se temos informações de índice nos metadados
@@ -221,10 +228,42 @@ class DocumentIngestor:
                 pinecone_index = self.indexer.sanitize_index_name(index_name)
                 pinecone_namespace = self.indexer.sanitize_namespace(namespace)
             
-            # Remover do Pinecone
-            self.indexer.delete_document(pinecone_index, pinecone_namespace, str(document.id))
+            # Obter os IDs dos chunks deste documento
+            chunk_ids = []
+            chunk_count = 0
             
-            # Atualizar status
+            # Buscar chunks do documento para remoção específica
+            chunks = self.db.query(DocumentChunk).filter(
+                DocumentChunk.document_id == document.id
+            ).all()
+            
+            chunk_count = len(chunks)
+            
+            if chunk_count > 0:
+                # Se tivermos chunks no banco, usamos seus IDs para exclusão mais precisa
+                logger.info(f"Encontrados {chunk_count} chunks para o documento {document.id}")
+                chunk_ids = [chunk.vector_id for chunk in chunks if chunk.vector_id]
+                
+                # Remover os vetores específicos pelo ID
+                if chunk_ids:
+                    try:
+                        logger.info(f"Excluindo {len(chunk_ids)} vetores por ID do Pinecone")
+                        index = self.indexer.pc.Index(pinecone_index)
+                        index.delete(ids=chunk_ids, namespace=pinecone_namespace)
+                        result["chunks_removed_by_id"] = len(chunk_ids)
+                    except Exception as e:
+                        logger.warning(f"Erro ao excluir vetores por ID, tentando por filtro: {str(e)}")
+            
+            # Também remover usando o filtro (abordagem de segurança para pegar qualquer vetor restante)
+            try:
+                logger.info(f"Excluindo vetores por filtro document_id={document.id} do Pinecone")
+                self.indexer.delete_document(pinecone_index, pinecone_namespace, str(document.id))
+                result["removed_by_filter"] = True
+            except Exception as e:
+                logger.error(f"Erro ao excluir por filtro: {str(e)}")
+                result["removed_by_filter"] = False
+            
+            # Atualizar status no banco de dados
             document.is_processed = False
             document.index_status = DOCUMENT_STATUS["PENDING"]
             
@@ -233,16 +272,32 @@ class DocumentIngestor:
                 del document.doc_metadata["pinecone_index"]
             if "pinecone_namespace" in document.doc_metadata:
                 del document.doc_metadata["pinecone_namespace"]
-                
+            if "indexing_progress" in document.doc_metadata:
+                del document.doc_metadata["indexing_progress"]
+            if "chunks_indexed" in document.doc_metadata:
+                del document.doc_metadata["chunks_indexed"]
+            if "total_chunks" in document.doc_metadata:
+                del document.doc_metadata["total_chunks"]
+            
             self.db.commit()
             
-            return {
-                "status": "success",
-                "document_id": document.id,
-                "index_name": pinecone_index,
-                "namespace": pinecone_namespace
-            }
+            # Adicionar informações ao resultado
+            result.update({
+                "pinecone_index": pinecone_index,
+                "pinecone_namespace": pinecone_namespace,
+                "total_chunks": chunk_count
+            })
+            
+            return result
             
         except Exception as e:
             logger.error(f"Erro ao remover documento {document.id} do índice: {str(e)}")
-            raise 
+            # Rolar de volta transações do banco de dados em caso de erro
+            self.db.rollback()
+            
+            # Retornar erro, mas não relançar a exceção para permitir que a aplicação continue
+            return {
+                "status": "error",
+                "document_id": document.id,
+                "error": str(e)
+            } 
