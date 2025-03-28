@@ -41,8 +41,16 @@ jobs:
           # Get the current task definition
           aws ecs describe-task-definition --task-definition $TASK_DEFINITION_FAMILY --query taskDefinition > task-definition.json
           
-          # Update the image in the task definition (assuming api is the container name)
-          jq --arg IMAGE "$ECR_REPOSITORY:$IMAGE_TAG" '.containerDefinitions[1].image = $IMAGE' task-definition.json > new-task-definition.json
+          # Extract only the required fields for task definition registration and update the image
+          jq --arg IMAGE "$ECR_REPOSITORY:$IMAGE_TAG" '{
+            family: .family,
+            executionRoleArn: .executionRoleArn,
+            networkMode: .networkMode,
+            containerDefinitions: (.containerDefinitions | map(if .name == "api" then . + {image: $IMAGE} else . end)),
+            requiresCompatibilities: .requiresCompatibilities,
+            cpu: .cpu,
+            memory: .memory
+          }' task-definition.json > new-task-definition.json
           
           # Register the new task definition
           NEW_TASK_DEF=$(aws ecs register-task-definition \
