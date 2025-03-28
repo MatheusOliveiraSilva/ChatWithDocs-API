@@ -11,10 +11,11 @@ from api.database.session import get_db
 from api.database.models import User, ConversationThread
 from api.utils.dependencies import get_current_user
 from api.utils.streaming import LLMStreamer
-from agent.graph import SimpleAssistantGraph
+
+from agent.graph import RAGGraph
 
 # Inicializar o grafo do agente
-GRAPH = SimpleAssistantGraph()
+GRAPH = RAGGraph()
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
@@ -38,11 +39,9 @@ def query_stream(
     user: User = Depends(get_current_user)
 ):
     """
-    Endpoint simplificado para streaming de mensagens.
-    Recebe a mensagem do usuário e o histórico da conversa, e envia a resposta em chunks.
-    O frontend é responsável por salvar o histórico completo.
-    
-    Suporta casos especiais como o Claude 3.7 Sonnet com thinking mode.
+    Endpoint para streaming de mensagens com RAG.
+    Recebe a mensagem do usuário, configurações de retriever e histórico da conversa,
+    e envia a resposta em chunks após recuperar documentos relevantes.
     """
     # Inicializar o agente
     agent = GRAPH.get_agent()
@@ -67,18 +66,35 @@ def query_stream(
         llm_config = {
             "model_id": request.llm_config.model_id,
             "provider": request.llm_config.provider,
-            "reasoning_effort": request.llm_config.reasoning_effort,
-            "think_mode": request.llm_config.think_mode,
             "temperature": request.llm_config.temperature
         }
+        # Adicionando configurações adicionais se disponíveis
+        if request.llm_config.reasoning_effort:
+            llm_config["reasoning_effort"] = request.llm_config.reasoning_effort
+        if request.llm_config.think_mode is not None:
+            llm_config["think_mode"] = request.llm_config.think_mode
+
+    # Preparar input para o agente
+    agent_input = {
+        "messages": messages,
+        "llm_config": llm_config,
+        "retriever_config": {
+                "user_id": user.id,
+                "thread_id": request.thread_id,
+                "top_k": 5,
+                "include_sources": True
+            }
+    }
+    
+    # Configuração opcional para o agente
+    agent_config = {"configurable": {"thread_id": request.thread_id}} if request.thread_id else None
     
     # Usar a função utilitária para streaming que lida com diferentes formatos de modelo
     return StreamingResponse(
         LLMStreamer.stream_response(
             agent=agent,
-            messages=messages,
-            llm_config=llm_config,
-            thread_id=request.thread_id
+            agent_input=agent_input,
+            agent_config=agent_config
         ),
         media_type="text/event-stream"
     )

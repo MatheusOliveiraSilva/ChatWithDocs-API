@@ -1,13 +1,34 @@
 import datetime
+import logging
+import boto3
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from api.database.session import get_db
-from api.database.models import User, ConversationThread
+from api.database.models import User, ConversationThread, Document
 from api.utils.dependencies import get_current_user
 from api.schemas.conversation import ConversationCreate, ConversationUpdate, ConversationResponse
+from api.config.settings import S3_BUCKET_NAME, S3_ACCESS_KEY, S3_SECRET_KEY, S3_REGION_NAME, S3_ENDPOINT_URL
+from ingestion.pinecone_indexer import PineconeIndexer
+from ingestion.ingestor import DocumentIngestor
 
 router = APIRouter(prefix="/conversation", tags=["Conversations"])
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Inicializar cliente S3
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=S3_ACCESS_KEY,
+    aws_secret_access_key=S3_SECRET_KEY,
+    region_name=S3_REGION_NAME,
+    endpoint_url=S3_ENDPOINT_URL
+)
+
+# Inicializar indexador Pinecone
+pinecone_indexer = PineconeIndexer()
 
 @router.post("", response_model=ConversationResponse)
 def add_conversation(
@@ -127,25 +148,103 @@ def get_conversation(
         "last_used": conversation.last_used
     }
 
-@router.delete("/{thread_id}")
+@router.delete("/{conversation_id}")
 def delete_conversation(
-    thread_id: str,
+    conversation_id: int,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Deleta uma conversa específica para o usuário autenticado.
+    Exclui uma conversa e todos os seus recursos associados (documentos no S3 e vetores no Pinecone).
     """
+    # Buscar a conversa
     conversation = db.query(ConversationThread).filter(
-        ConversationThread.user_id == user.id,
-        ConversationThread.thread_id == thread_id
+        ConversationThread.id == conversation_id,
+        ConversationThread.user_id == user.id
     ).first()
     
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversa não encontrada")
     
-    # Deletar a conversa
+    return _delete_conversation_internal(conversation, user, db)
+
+@router.delete("/thread/{thread_id}")
+def delete_conversation_by_thread_id(
+    thread_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Exclui uma conversa pelo thread_id e todos os seus recursos associados (documentos no S3 e vetores no Pinecone).
+    """
+    # Buscar a conversa pelo thread_id
+    conversation = db.query(ConversationThread).filter(
+        ConversationThread.thread_id == thread_id,
+        ConversationThread.user_id == user.id
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversa não encontrada")
+    
+    return _delete_conversation_internal(conversation, user, db)
+
+def _delete_conversation_internal(
+    conversation: ConversationThread,
+    user: User,
+    db: Session
+):
+    """
+    Função interna para excluir uma conversa e todos os seus recursos associados.
+    Reutilizada por ambas as rotas de exclusão.
+    """
+    thread_id = conversation.thread_id
+    conversation_id = conversation.id
+    
+    # Buscar documentos associados para limpar S3 e Pinecone
+    documents = db.query(Document).filter(
+        Document.conversation_id == conversation_id
+    ).all()
+    
+    # Inicializar o DocumentIngestor para uso correto da remoção de documentos
+    ingestor = DocumentIngestor(db_session=db)
+    
+    for document in documents:
+        try:
+            # 1. Limpar documentos do S3
+            logger.info(f"Excluindo documento {document.id} do S3: {document.s3_path}")
+            s3_client.delete_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=document.s3_path
+            )
+            
+            # 2. Limpar vetores do Pinecone usando o ingestor
+            # Isso garante que usamos a mesma lógica da rota de exclusão de documentos
+            if document.is_processed:
+                logger.info(f"Excluindo vetores do documento {document.id} do Pinecone usando o ingestor")
+                try:
+                    ingestor.delete_document_from_index(document.id)
+                except Exception as e:
+                    logger.error(f"Erro ao excluir vetores do Pinecone usando ingestor: {str(e)}")
+        
+        except Exception as e:
+            logger.error(f"Erro ao limpar recursos do documento {document.id}: {str(e)}")
+            # Continuar mesmo se houver erro em um documento
+    
+    # 3. Apagar namespace inteiro do Pinecone para garantir limpeza completa
+    if any(doc.is_processed for doc in documents):
+        try:
+            index_name = f"user{user.id}"
+            pinecone_indexer = PineconeIndexer()
+            sanitized_index = pinecone_indexer.sanitize_index_name(index_name)
+            sanitized_namespace = pinecone_indexer.sanitize_namespace(thread_id)
+            
+            logger.info(f"Excluindo namespace inteiro do Pinecone: {sanitized_index}/{sanitized_namespace}")
+            pinecone_indexer.delete_namespace(sanitized_index, sanitized_namespace)
+        except Exception as e:
+            logger.error(f"Erro ao excluir namespace do Pinecone: {str(e)}")
+    
+    # 4. Excluir a conversa (isso vai excluir automaticamente documentos e chunks via CASCADE)
     db.delete(conversation)
     db.commit()
     
-    return {"message": "Conversa deletada com sucesso"} 
+    return {"status": "success", "message": "Conversa e recursos associados excluídos com sucesso"} 
