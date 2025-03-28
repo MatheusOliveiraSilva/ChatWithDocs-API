@@ -1,7 +1,6 @@
 {
     "family": "chatmemoryapi-task",
     "executionRoleArn": "arn:aws:iam::248189927293:role/ecsTaskExecutionRole",
-    "taskRoleArn": "arn:aws:iam::248189927293:role/ecsTaskRole",
     "networkMode": "awsvpc",
     "containerDefinitions": [
       {
@@ -33,14 +32,6 @@
           {
             "name": "DATABASE_URL",
             "value": "postgresql://matheus:password@adaptative-rag-db.ckzkqy0wyi4h.us-east-1.rds.amazonaws.com:5432/users_chat_history"
-          },
-          {
-            "name": "ENVIRONMENT",
-            "value": "production"
-          },
-          {
-            "name": "AWS_REGION",
-            "value": "us-east-1"
           }
         ],
         "portMappings": [

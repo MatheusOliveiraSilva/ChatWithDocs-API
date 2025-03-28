@@ -21,17 +21,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Set environment variable from AWS Secrets Manager
-        run: |
-          # Get secret values from AWS Secrets Manager and set as environment variables
-          SECRET_NAME="prod/chat-with-docs"
-          
-          # Retrieve the secret string
-          SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id $SECRET_NAME --query 'SecretString' --output text)
-          
-          # Set ENVIRONMENT to production for the Dockerfile
-          echo "ENVIRONMENT=production" >> $GITHUB_ENV
-
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
@@ -41,38 +30,12 @@ jobs:
         run: |
           IMAGE_TAG=$(date +%s)
           docker buildx create --use
-          docker buildx build --platform linux/amd64 --build-arg ENVIRONMENT=production -t $ECR_REPOSITORY:$IMAGE_TAG --push .
+          docker buildx build --platform linux/amd64 -t $ECR_REPOSITORY:$IMAGE_TAG --push .
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-      - name: Update task definition with new image
-        env:
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-          TASK_DEFINITION_FAMILY: chatmemoryapi-task
-        run: |
-          # Get the current task definition
-          aws ecs describe-task-definition --task-definition $TASK_DEFINITION_FAMILY --query taskDefinition > task-definition.json
-          
-          # Extract only the required fields for task definition registration and update the image
-          jq --arg IMAGE "$ECR_REPOSITORY:$IMAGE_TAG" '{
-            family: .family,
-            executionRoleArn: .executionRoleArn,
-            networkMode: .networkMode,
-            containerDefinitions: (.containerDefinitions | map(if .name == "api" then . + {image: $IMAGE} else . end)),
-            requiresCompatibilities: .requiresCompatibilities,
-            cpu: .cpu,
-            memory: .memory
-          }' task-definition.json > new-task-definition.json
-          
-          # Register the new task definition
-          NEW_TASK_DEF=$(aws ecs register-task-definition \
-            --cli-input-json file://new-task-definition.json \
-            --query 'taskDefinition.taskDefinitionArn' --output text)
-          
-          echo "NEW_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
-
-      - name: Update ECS Service with new task definition
+      - name: Update ECS Service for new deployment
         env:
           CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
           SERVICE_NAME: ${{ secrets.SERVICE_NAME }}
         run: |
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEF
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
