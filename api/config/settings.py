@@ -1,7 +1,12 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
 from api.utils.secrets_manager import get_secrets
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Carrega as variáveis de ambiente
 root = Path(__file__).parent.parent.parent  # Vai para o diretório raiz do projeto
@@ -16,10 +21,16 @@ secrets = {}
 
 if ENVIRONMENT == "production":
     # In production, use secrets manager
-    secrets = get_secrets("prod/chat-with-docs", AWS_REGION)
+    logger.info(f"Ambiente de produção detectado, tentando carregar secrets de AWS Secrets Manager")
+    try:
+        secrets = get_secrets("prod/chat-with-docs", AWS_REGION)
+        if not secrets:
+            logger.warning("Não foi possível obter segredos do AWS Secrets Manager. Usando variáveis de ambiente como fallback.")
+    except Exception as e:
+        logger.error(f"Erro ao carregar segredos: {str(e)}")
+        logger.warning("Usando variáveis de ambiente como fallback...")
 else:
-    # In development, use env variables
-    pass
+    logger.info(f"Ambiente de desenvolvimento detectado, usando variáveis de ambiente")
 
 # Auth0 Configuration
 AUTH0_DOMAIN = secrets.get("AUTH0_DOMAIN") or os.getenv("AUTH0_DOMAIN")
@@ -54,4 +65,11 @@ OPENAI_API_KEY = secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 ANTHROPIC_API_KEY = secrets.get("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
 
 # Pinecone settings
-PINECONE_API_KEY = secrets.get("PINECONE_API_KEY") or os.getenv("PINECONE_API_KEY") 
+PINECONE_API_KEY = secrets.get("PINECONE_API_KEY") or os.getenv("PINECONE_API_KEY")
+
+# Log configurações importantes
+if not PINECONE_API_KEY:
+    logger.warning("PINECONE_API_KEY não encontrada! Isso pode causar erros em funções que dependem do Pinecone.")
+    
+if not OPENAI_API_KEY:
+    logger.warning("OPENAI_API_KEY não encontrada! Isso pode causar erros em funções que dependem da OpenAI.") 

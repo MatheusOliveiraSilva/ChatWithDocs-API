@@ -1,9 +1,11 @@
 import os
 import re
+import logging
 from typing import List, Dict, Any, Optional
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone, ServerlessSpec
+from pinecone.exceptions import PineconeConfigurationError, PineconeException
 
 from ingestion.config import (
     PINECONE_API_KEY,
@@ -12,6 +14,10 @@ from ingestion.config import (
     OPENAI_API_KEY,
     EMBEDDING_MODEL
 )
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class PineconeIndexer:
     """
@@ -28,15 +34,40 @@ class PineconeIndexer:
         """
         self.api_key = api_key or PINECONE_API_KEY
         self.environment = environment or PINECONE_ENVIRONMENT
+        self.pc = None
+        self.embeddings = None
         
-        # Inicializar cliente Pinecone
-        self.pc = Pinecone(api_key=self.api_key)
-        
-        # Inicializar modelo de embeddings
-        self.embeddings = OpenAIEmbeddings(
-            api_key=OPENAI_API_KEY,
-            model=EMBEDDING_MODEL
-        )
+        # Verificar se temos a API key do Pinecone
+        if not self.api_key:
+            logger.error("API Key do Pinecone não encontrada. Funcionalidades de indexação não estarão disponíveis.")
+            return
+            
+        # Inicializar cliente Pinecone com tratamento de erros
+        try:
+            self.pc = Pinecone(api_key=self.api_key)
+            logger.info("Cliente Pinecone inicializado com sucesso")
+        except PineconeConfigurationError as e:
+            logger.error(f"Erro na configuração do Pinecone: {str(e)}")
+            logger.error("Verifique se a chave API do Pinecone está correta")
+            return
+        except Exception as e:
+            logger.error(f"Erro ao inicializar Pinecone: {str(e)}")
+            return
+            
+        # Verificar se temos a API key da OpenAI
+        if not OPENAI_API_KEY:
+            logger.error("API Key da OpenAI não encontrada. Geração de embeddings não estará disponível.")
+            return
+            
+        # Inicializar modelo de embeddings com tratamento de erros
+        try:
+            self.embeddings = OpenAIEmbeddings(
+                api_key=OPENAI_API_KEY,
+                model=EMBEDDING_MODEL
+            )
+            logger.info("Modelo de embeddings inicializado com sucesso")
+        except Exception as e:
+            logger.error(f"Erro ao inicializar modelo de embeddings: {str(e)}")
     
     @staticmethod
     def sanitize_index_name(name: str) -> str:
@@ -103,23 +134,34 @@ class PineconeIndexer:
         Returns:
             Nome sanitizado do índice
         """
+        # Verificar se o cliente Pinecone está inicializado
+        if not self.pc:
+            logger.error("Cliente Pinecone não inicializado. Não é possível manipular índices.")
+            raise RuntimeError("Cliente Pinecone não inicializado")
+            
         # Sanitizar nome do índice
         sanitized_name = self.sanitize_index_name(index_name)
         
-        # Listar índices existentes
-        existing_indexes = [index.name for index in self.pc.list_indexes()]
-        
-        # Criar índice se não existir
-        if sanitized_name not in existing_indexes:
-            self.pc.create_index(
-                name=sanitized_name,
-                dimension=PINECONE_INDEX_DIMENSIONS,
-                metric="cosine",
-                spec=ServerlessSpec(
-                    cloud="aws",
-                    region="us-east-1"
+        try:
+            # Listar índices existentes
+            existing_indexes = [index.name for index in self.pc.list_indexes()]
+            
+            # Criar índice se não existir
+            if sanitized_name not in existing_indexes:
+                logger.info(f"Criando índice Pinecone: {sanitized_name}")
+                self.pc.create_index(
+                    name=sanitized_name,
+                    dimension=PINECONE_INDEX_DIMENSIONS,
+                    metric="cosine",
+                    spec=ServerlessSpec(
+                        cloud="aws",
+                        region="us-east-1"
+                    )
                 )
-            )
+                logger.info(f"Índice {sanitized_name} criado com sucesso")
+        except PineconeException as e:
+            logger.error(f"Erro ao gerenciar índice Pinecone: {str(e)}")
+            raise
             
         return sanitized_name
     
