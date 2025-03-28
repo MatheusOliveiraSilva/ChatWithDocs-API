@@ -44,7 +44,10 @@
           { "name": "PINECONE_API_KEY", "value": "${PINECONE_API_KEY}" },
           { "name": "POSTGRES_USER", "value": "${POSTGRES_USER}" },
           { "name": "POSTGRES_PASSWORD", "value": "${POSTGRES_PASSWORD}" },
-          { "name": "POSTGRES_DB", "value": "${POSTGRES_DB}" }
+          { "name": "POSTGRES_DB", "value": "${POSTGRES_DB}" },
+          { "name": "AWS_ACCESS_KEY_ID", "value": "${AWS_ACCESS_KEY_ID}" },
+          { "name": "AWS_SECRET_ACCESS_KEY", "value": "${AWS_SECRET_ACCESS_KEY}" },
+          { "name": "AWS_REGION", "value": "${AWS_REGION}" }
         ],
         "portMappings": [
           {
