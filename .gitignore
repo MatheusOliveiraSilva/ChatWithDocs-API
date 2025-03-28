@@ -2,3 +2,21 @@
 venv/
 
 .env
+
+api/__pycache__/
+
+agent/__pycache__/
+
+api/config/__pycache__/
+
+api/database/__pycache__/
+
+api/routers/__pycache__/
+
+api/utils/__pycache__/
+
+api/schemas/__pycache__/
+
+ingestion/__pycache__/
+
+retrieval/__pycache__/
