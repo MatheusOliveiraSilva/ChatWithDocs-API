@@ -33,9 +33,27 @@ jobs:
           docker buildx build --platform linux/amd64 -t $ECR_REPOSITORY:$IMAGE_TAG --push .
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
-      - name: Update ECS Service for new deployment
+      - name: Update task definition with new image
+        env:
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          TASK_DEFINITION_FAMILY: chatmemoryapi-task
+        run: |
+          # Get the current task definition
+          aws ecs describe-task-definition --task-definition $TASK_DEFINITION_FAMILY --query taskDefinition > task-definition.json
+          
+          # Update the image in the task definition (assuming api is the container name)
+          jq --arg IMAGE "$ECR_REPOSITORY:$IMAGE_TAG" '.containerDefinitions[1].image = $IMAGE' task-definition.json > new-task-definition.json
+          
+          # Register the new task definition
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          
+          echo "NEW_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
+
+      - name: Update ECS Service with new task definition
         env:
           CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
           SERVICE_NAME: ${{ secrets.SERVICE_NAME }}
         run: |
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $NEW_TASK_DEF
