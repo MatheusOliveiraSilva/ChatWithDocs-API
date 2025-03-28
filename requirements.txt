@@ -21,3 +21,4 @@ pinecone-client
 PyPDF2
 python-docx
 langchain-text-splitters
+itsdangerous
