@@ -10,9 +10,9 @@
         "memory": 512,
         "essential": false,
         "environment": [
-          { "name": "POSTGRES_USER", "value": "matheus" },
-          { "name": "POSTGRES_PASSWORD", "value": "password" },
-          { "name": "POSTGRES_DB", "value": "users_chat_history" }
+          { "name": "POSTGRES_USER", "value": "${POSTGRES_USER}" },
+          { "name": "POSTGRES_PASSWORD", "value": "${POSTGRES_PASSWORD}" },
+          { "name": "POSTGRES_DB", "value": "${POSTGRES_DB}" }
         ],
         "portMappings": [
           {
@@ -24,15 +24,27 @@
       },
       {
         "name": "api",
-        "image": "248189927293.dkr.ecr.us-east-1.amazonaws.com/chatmemoryapi:latest",
+        "image": "${ECR_REPOSITORY_URI}:${IMAGE_TAG}",
         "cpu": 256,
         "memory": 512,
         "essential": true,
         "environment": [
-          {
-            "name": "DATABASE_URL",
-            "value": "postgresql://matheus:password@adaptative-rag-db.ckzkqy0wyi4h.us-east-1.rds.amazonaws.com:5432/users_chat_history"
-          }
+          { "name": "DATABASE_URL", "value": "${DATABASE_URL}" },
+          { "name": "MIDDLEWARE_SECRET_KEY", "value": "${MIDDLEWARE_SECRET_KEY}" },
+          { "name": "AUTH0_DOMAIN", "value": "${AUTH0_DOMAIN}" },
+          { "name": "AUTH0_CLIENT_ID", "value": "${AUTH0_CLIENT_ID}" },
+          { "name": "AUTH0_CLIENT_SECRET", "value": "${AUTH0_CLIENT_SECRET}" },
+          { "name": "FRONTEND_URL", "value": "${FRONTEND_URL}" },
+          { "name": "ANTHROPIC_API_KEY", "value": "${ANTHROPIC_API_KEY}" },
+          { "name": "OPENAI_API_KEY", "value": "${OPENAI_API_KEY}" },
+          { "name": "S3_BUCKET_NAME", "value": "${S3_BUCKET_NAME}" },
+          { "name": "S3_ACCESS_KEY", "value": "${S3_ACCESS_KEY}" },
+          { "name": "S3_SECRET_KEY", "value": "${S3_SECRET_KEY}" },
+          { "name": "S3_REGION", "value": "${S3_REGION}" },
+          { "name": "PINECONE_API_KEY", "value": "${PINECONE_API_KEY}" },
+          { "name": "POSTGRES_USER", "value": "${POSTGRES_USER}" },
+          { "name": "POSTGRES_PASSWORD", "value": "${POSTGRES_PASSWORD}" },
+          { "name": "POSTGRES_DB", "value": "${POSTGRES_DB}" }
         ],
         "portMappings": [
           {
@@ -45,7 +57,7 @@
           "logDriver": "awslogs",
           "options": {
             "awslogs-group": "/ecs/chatmemoryapi-task",
-            "awslogs-region": "us-east-1",
+            "awslogs-region": "${AWS_REGION}",
             "awslogs-stream-prefix": "ecs"
           }
         }

@@ -30,12 +30,52 @@ jobs:
         run: |
           IMAGE_TAG=$(date +%s)
           docker buildx create --use
-          docker buildx build --platform linux/amd64 -t $ECR_REPOSITORY:$IMAGE_TAG --push .
+          docker buildx build --platform linux/amd64 -t $ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REPOSITORY:latest --push .
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY_URI=$ECR_REPOSITORY" >> $GITHUB_ENV
 
-      - name: Update ECS Service for new deployment
+      - name: Process task definition template
+        run: |
+          # Create a copy of the task definition template
+          cp chatmemoryapi-task.json task-definition-template.json
+          
+          # Replace environment variables with actual values from secrets
+          sed -i "s|\${ECR_REPOSITORY_URI}|${{ secrets.ECR_REPOSITORY }}|g" task-definition-template.json
+          sed -i "s|\${IMAGE_TAG}|$IMAGE_TAG|g" task-definition-template.json
+          sed -i "s|\${AWS_REGION}|${{ secrets.AWS_REGION }}|g" task-definition-template.json
+          sed -i "s|\${DATABASE_URL}|${{ secrets.DATABASE_URL }}|g" task-definition-template.json
+          sed -i "s|\${POSTGRES_USER}|${{ secrets.POSTGRES_USER }}|g" task-definition-template.json
+          sed -i "s|\${POSTGRES_PASSWORD}|${{ secrets.POSTGRES_PASSWORD }}|g" task-definition-template.json
+          sed -i "s|\${POSTGRES_DB}|${{ secrets.POSTGRES_DB }}|g" task-definition-template.json
+          sed -i "s|\${MIDDLEWARE_SECRET_KEY}|${{ secrets.MIDDLEWARE_SECRET_KEY }}|g" task-definition-template.json
+          sed -i "s|\${AUTH0_DOMAIN}|${{ secrets.AUTH0_DOMAIN }}|g" task-definition-template.json
+          sed -i "s|\${AUTH0_CLIENT_ID}|${{ secrets.AUTH0_CLIENT_ID }}|g" task-definition-template.json
+          sed -i "s|\${AUTH0_CLIENT_SECRET}|${{ secrets.AUTH0_CLIENT_SECRET }}|g" task-definition-template.json
+          sed -i "s|\${FRONTEND_URL}|${{ secrets.FRONTEND_URL }}|g" task-definition-template.json
+          sed -i "s|\${ANTHROPIC_API_KEY}|${{ secrets.ANTHROPIC_API_KEY }}|g" task-definition-template.json
+          sed -i "s|\${OPENAI_API_KEY}|${{ secrets.OPENAI_API_KEY }}|g" task-definition-template.json
+          sed -i "s|\${S3_BUCKET_NAME}|${{ secrets.S3_BUCKET_NAME }}|g" task-definition-template.json
+          sed -i "s|\${S3_ACCESS_KEY}|${{ secrets.S3_ACCESS_KEY }}|g" task-definition-template.json
+          sed -i "s|\${S3_SECRET_KEY}|${{ secrets.S3_SECRET_KEY }}|g" task-definition-template.json
+          sed -i "s|\${S3_REGION}|${{ secrets.S3_REGION }}|g" task-definition-template.json
+          sed -i "s|\${PINECONE_API_KEY}|${{ secrets.PINECONE_API_KEY }}|g" task-definition-template.json
+          
+      - name: Register new task definition
+        id: register-task
+        run: |
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition-template.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "NEW_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
+
+      - name: Update ECS Service with new task definition
         env:
           CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
           SERVICE_NAME: ${{ secrets.SERVICE_NAME }}
         run: |
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment
+          aws ecs update-service \
+            --cluster $CLUSTER_NAME \
+            --service $SERVICE_NAME \
+            --task-definition $NEW_TASK_DEF \
+            --force-new-deployment

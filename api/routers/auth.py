@@ -14,7 +14,6 @@ from api.config.settings import (
     AUTH0_DOMAIN, 
     AUTH0_CLIENT_ID, 
     AUTH0_CLIENT_SECRET, 
-    AUTH0_CALLBACK_URL,
     FRONTEND_URL
 )
 
@@ -84,6 +83,7 @@ async def auth_login(redirect_uri: str = None, prompt: str = None,
     Endpoint que redireciona para a página de login do Auth0
     """
     # Armazenar o redirect_uri nos query params para ser usado depois no callback
+    AUTH0_CALLBACK_URL = FRONTEND_URL + "/auth/callback"
     callback_url = AUTH0_CALLBACK_URL
     if redirect_uri:
         callback_url = f"{AUTH0_CALLBACK_URL}?redirect_uri={redirect_uri}"
@@ -117,6 +117,8 @@ async def auth_callback(
     """
     Callback handler para processar o código de autorização Auth0 e criar sessão
     """
+
+    AUTH0_CALLBACK_URL = FRONTEND_URL + "/auth/callback"
     # Trocar código de autorização por tokens
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
     token_payload = {
