@@ -7,7 +7,8 @@ class LoginRequest(BaseModel):
 
 class Auth0TokenRequest(BaseModel):
     code: str
-    redirect_uri: str
+    redirect_uri: Optional[str] = None
+    state: Optional[str] = None
 
 class Auth0TokenResponse(BaseModel):
     access_token: str

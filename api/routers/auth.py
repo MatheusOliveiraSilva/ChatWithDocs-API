@@ -15,7 +15,8 @@ from api.config.settings import (
     AUTH0_CLIENT_ID, 
     AUTH0_CLIENT_SECRET, 
     AUTH0_CALLBACK_URL,
-    FRONTEND_URL
+    FRONTEND_URL,
+    API_URL
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -83,19 +84,21 @@ async def auth_login(redirect_uri: str = None, prompt: str = None,
     """
     Endpoint que redireciona para a página de login do Auth0
     """
-    # Armazenar o redirect_uri nos query params para ser usado depois no callback
-    callback_url = AUTH0_CALLBACK_URL
-    if redirect_uri:
-        callback_url = f"{AUTH0_CALLBACK_URL}?redirect_uri={redirect_uri}"
+    # Use a API URL como callback básico se AUTH0_CALLBACK_URL não estiver definido
+    base_callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
     
-    # Construir URL com parâmetros adicionais se fornecidos
+    # Armazenar o redirect_uri como um state parameter em vez de alterar o callback_url
     auth_url = (
         f"https://{AUTH0_DOMAIN}/authorize"
         f"?response_type=code"
         f"&client_id={AUTH0_CLIENT_ID}"
-        f"&redirect_uri={callback_url}"
+        f"&redirect_uri={base_callback_url}"
         f"&scope=openid profile email"
     )
+    
+    # Se redirect_uri estiver presente, adicione como um parâmetro state
+    if redirect_uri:
+        auth_url += f"&state={redirect_uri}"
     
     # Adicionar parâmetros opcionais
     if prompt:
@@ -110,21 +113,23 @@ async def auth_login(redirect_uri: str = None, prompt: str = None,
 @router.get("/callback")
 async def auth_callback(
     request: Request, 
-    code: str, 
-    redirect_uri: str = None,
+    code: str,
+    state: str = None,
     db: Session = Depends(get_db)
 ):
     """
     Callback handler para processar o código de autorização Auth0 e criar sessão
     """
     # Trocar código de autorização por tokens
+    base_callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
+    
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
     token_payload = {
         "grant_type": "authorization_code",
         "client_id": AUTH0_CLIENT_ID,
         "client_secret": AUTH0_CLIENT_SECRET,
         "code": code,
-        "redirect_uri": AUTH0_CALLBACK_URL
+        "redirect_uri": base_callback_url
     }
 
     token_response = requests.post(token_url, json=token_payload)
@@ -174,8 +179,8 @@ async def auth_callback(
         db.commit()
     
     # Definir cookies para autenticação
-    # Usar o redirect_uri fornecido, se disponível, caso contrário, usar a variável de ambiente
-    frontend_url = redirect_uri or FRONTEND_URL
+    # Usar o state como redirect_uri, se disponível, caso contrário, usar a variável de ambiente
+    frontend_url = state or FRONTEND_URL
     
     # Gerar um token JWT
     token = str(user.id)  # Simplificado para este exemplo
@@ -210,13 +215,15 @@ async def auth_token(
     Endpoint para trocar o código de autorização por tokens e criar uma sessão
     (Implementação alternativa para SPAs que não usam redirecionamento)
     """
+    base_callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
+    
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
     token_payload = {
         "grant_type": "authorization_code",
         "client_id": AUTH0_CLIENT_ID,
         "client_secret": AUTH0_CLIENT_SECRET,
         "code": token_request.code,
-        "redirect_uri": token_request.redirect_uri
+        "redirect_uri": base_callback_url
     }
 
     token_response = requests.post(token_url, json=token_payload)

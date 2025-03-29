@@ -33,3 +33,6 @@ S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
 S3_REGION_NAME = os.getenv("S3_REGION_NAME")
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", None)  # Para MinIO ou outro serviço compatível 
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+API_URL = os.getenv("API_URL")
