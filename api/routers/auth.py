@@ -13,11 +13,8 @@ from api.utils.dependencies import get_current_user, get_auth0_user_info
 from api.config.settings import (
     AUTH0_DOMAIN, 
     AUTH0_CLIENT_ID, 
-    AUTH0_CLIENT_SECRET, 
-<<<<<<< HEAD
-=======
+    AUTH0_CLIENT_SECRET,
     AUTH0_CALLBACK_URL,
->>>>>>> development
     FRONTEND_URL,
     API_URL
 )
@@ -87,32 +84,15 @@ async def auth_login(redirect_uri: str = None, prompt: str = None,
     """
     Endpoint que redireciona para a página de login do Auth0
     """
-<<<<<<< HEAD
-    # Usar o callback da API ao invés do frontend
-    AUTH0_CALLBACK_URL = f"{API_URL}/auth/callback"
-    
-    # Corrigir redirect_uri se contiver barras duplas
-    final_redirect = FRONTEND_URL
-    if redirect_uri:
-        # Remover barras duplas e garantir formato correto
-        if "//" in redirect_uri.replace("https://", "").replace("http://", ""):
-            redirect_uri = redirect_uri.replace("//", "/")
-        final_redirect = redirect_uri
-=======
     # Use a API URL como callback básico se AUTH0_CALLBACK_URL não estiver definido
     base_callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
->>>>>>> development
     
     # Armazenar o redirect_uri como um state parameter em vez de alterar o callback_url
     auth_url = (
         f"https://{AUTH0_DOMAIN}/authorize"
         f"?response_type=code"
         f"&client_id={AUTH0_CLIENT_ID}"
-<<<<<<< HEAD
-        f"&redirect_uri={AUTH0_CALLBACK_URL}"
-=======
         f"&redirect_uri={base_callback_url}"
->>>>>>> development
         f"&scope=openid profile email"
     )
     
@@ -135,11 +115,7 @@ async def auth_login(redirect_uri: str = None, prompt: str = None,
 @router.get("/callback")
 async def auth_callback(
     request: Request, 
-<<<<<<< HEAD
-    code: str, 
-=======
     code: str,
->>>>>>> development
     state: str = None,
     db: Session = Depends(get_db)
 ):
@@ -208,15 +184,8 @@ async def auth_callback(
         db.commit()
     
     # Definir cookies para autenticação
-<<<<<<< HEAD
-    # Usar a URL principal do frontend como destino final
-    frontend_url = FRONTEND_URL
-    if state and state.startswith("http"):
-        frontend_url = state
-=======
     # Usar o state como redirect_uri, se disponível, caso contrário, usar a variável de ambiente
     frontend_url = state or FRONTEND_URL
->>>>>>> development
     
     # Gerar um token JWT
     token = str(user.id)  # Simplificado para este exemplo
@@ -251,25 +220,15 @@ async def auth_token(
     Endpoint para trocar o código de autorização por tokens e criar uma sessão
     (Implementação alternativa para SPAs que não usam redirecionamento)
     """
-<<<<<<< HEAD
-    # Usar o callback da API ao invés do frontend
-    AUTH0_CALLBACK_URL = f"{API_URL}/auth/callback"
-
-=======
     base_callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
     
->>>>>>> development
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
     token_payload = {
         "grant_type": "authorization_code",
         "client_id": AUTH0_CLIENT_ID,
         "client_secret": AUTH0_CLIENT_SECRET,
         "code": token_request.code,
-<<<<<<< HEAD
-        "redirect_uri": AUTH0_CALLBACK_URL
-=======
         "redirect_uri": base_callback_url
->>>>>>> development
     }
 
     token_response = requests.post(token_url, json=token_payload)
