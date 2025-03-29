@@ -92,12 +92,12 @@ class DocumentIngestor:
             # Namespace é o thread_id (será sanitizado pelo indexador)
             namespace = document.thread_id
             
-            # Indexar chunks no Pinecone
-            logger.info(f"Indexando {len(chunks)} chunks no Pinecone (index={index_name}, namespace={namespace})")
-            
-            # Obter nomes sanitizados para referência
-            sanitized_index = self.indexer.sanitize_index_name(index_name)
+            # Verificar se o índice existe e criá-lo se necessário
+            sanitized_index = self.indexer.ensure_index_exists(index_name)
             sanitized_namespace = self.indexer.sanitize_namespace(namespace)
+            
+            # Indexar chunks no Pinecone
+            logger.info(f"Indexando {len(chunks)} chunks no Pinecone (index={sanitized_index}, namespace={sanitized_namespace})")
             
             # Processar chunks em lotes para salvar gradualmente no banco
             BATCH_SIZE = 10
@@ -117,20 +117,27 @@ class DocumentIngestor:
                 # Indexar o batch atual no Pinecone
                 logger.info(f"Indexando batch {i//BATCH_SIZE + 1}/{(total_chunks+BATCH_SIZE-1)//BATCH_SIZE}: {len(batch_chunks)} chunks")
                 
-                # Criar vetores para este batch
-                vector_store = PineconeVectorStore(
-                    index=self.indexer.pc.Index(sanitized_index),
-                    embedding=self.indexer.embeddings,
-                    pinecone_api_key=self.indexer.api_key,
-                    namespace=sanitized_namespace
-                )
-                
-                # Adicionar documentos do batch atual
-                vector_store.add_texts(
-                    texts=batch_texts,
-                    metadatas=batch_metadatas,
-                    ids=batch_ids
-                )
+                try:
+                    # Obter ou criar o índice Pinecone
+                    index = self.indexer.pc.Index(sanitized_index)
+                    
+                    # Criar vetores para este batch
+                    vector_store = PineconeVectorStore(
+                        index=index,
+                        embedding=self.indexer.embeddings,
+                        pinecone_api_key=self.indexer.api_key,
+                        namespace=sanitized_namespace
+                    )
+                    
+                    # Adicionar documentos do batch atual
+                    vector_store.add_texts(
+                        texts=batch_texts,
+                        metadatas=batch_metadatas,
+                        ids=batch_ids
+                    )
+                except Exception as e:
+                    logger.error(f"Erro ao indexar batch no Pinecone: {str(e)}")
+                    raise
                 
                 # Salvar os chunks processados no banco em tempo real
                 for j, chunk in enumerate(batch_chunks):
@@ -227,6 +234,21 @@ class DocumentIngestor:
                 # Sanitizar nomes (mesmo processo usado na ingestão)
                 pinecone_index = self.indexer.sanitize_index_name(index_name)
                 pinecone_namespace = self.indexer.sanitize_namespace(namespace)
+            
+            # Verificar se o índice existe antes de tentar acessá-lo
+            try:
+                # Listar índices existentes
+                existing_indexes = [index.name for index in self.indexer.pc.list_indexes()]
+                
+                if pinecone_index not in existing_indexes:
+                    logger.warning(f"Índice {pinecone_index} não existe, nada para excluir")
+                    return {
+                        "status": "warning",
+                        "document_id": document.id,
+                        "message": f"Índice {pinecone_index} não encontrado"
+                    }
+            except Exception as e:
+                logger.error(f"Erro ao verificar índices Pinecone: {str(e)}")
             
             # Obter os IDs dos chunks deste documento
             chunk_ids = []

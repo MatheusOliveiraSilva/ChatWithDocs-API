@@ -16,8 +16,29 @@ def process_document_task(document_id: int, db: Session):
     # Criar uma nova sessão para o background task
     db_session = Session(bind=db.get_bind())
     try:
+        # Verificar se o documento existe
+        document = db_session.query(Document).filter(Document.id == document_id).first()
+        if not document:
+            raise ValueError(f"Documento não encontrado: {document_id}")
+            
+        # Criar ingestor com a sessão
         ingestor = DocumentIngestor(db_session=db_session)
+        
+        # Processar documento
         ingestor.ingest_document(document_id)
+    except Exception as e:
+        import logging
+        logging.error(f"Erro ao processar documento {document_id}: {str(e)}")
+        # Atualizar status do documento para falha
+        try:
+            document = db_session.query(Document).filter(Document.id == document_id).first()
+            if document:
+                document.index_status = "failed"
+                document.doc_metadata = document.doc_metadata or {}
+                document.doc_metadata.update({"error": str(e)})
+                db_session.commit()
+        except Exception as inner_e:
+            logging.error(f"Erro ao atualizar status do documento: {str(inner_e)}")
     finally:
         db_session.close()
 
