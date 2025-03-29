@@ -15,13 +15,12 @@ AUTH0_CALLBACK_URL = os.getenv("AUTH0_CALLBACK_URL")
 # Middleware Secret Key
 MIDDLEWARE_SECRET_KEY = os.getenv("MIDDLEWARE_SECRET_KEY", "default-secret-key")
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+
 # CORS Settings
-CORS_ORIGINS = ["http://localhost:5173"]  # Substitua por origens específicas em produção
+CORS_ORIGINS = [FRONTEND_URL]  # Substitua por origens específicas em produção
 CORS_METHODS = ["*"]
 CORS_HEADERS = ["*"]
-
-# Frontend URL para redirecionamentos
-FRONTEND_URL = os.getenv("FRONTEND_URL", "")
 
 # Configurações da aplicação
 APP_NAME = "ChatWithDocs-API"
