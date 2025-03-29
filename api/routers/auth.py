@@ -97,8 +97,13 @@ async def auth_login(redirect_uri: str = None, prompt: str = None,
     )
     
     # Se redirect_uri estiver presente, adicione como um parâmetro state
+    # Importante: Não substituir o state, mas usar ele para redirecionar depois
     if redirect_uri:
+        # Use redirect_uri como state para redirecionar depois da autenticação
         auth_url += f"&state={redirect_uri}"
+    else:
+        # Se não fornecido, use o FRONTEND_URL default como state
+        auth_url += f"&state={FRONTEND_URL}"
     
     # Adicionar parâmetros opcionais
     if prompt:
@@ -107,8 +112,6 @@ async def auth_login(redirect_uri: str = None, prompt: str = None,
         auth_url += f"&force_login=true"
     if ui_locales:
         auth_url += f"&ui_locales={ui_locales}"
-    # Sempre passar o FRONTEND_URL como state
-    auth_url += f"&state={FRONTEND_URL}"
     
     return RedirectResponse(auth_url)
 
@@ -122,11 +125,8 @@ async def auth_callback(
     """
     Callback handler para processar o código de autorização Auth0 e criar sessão
     """
-    # Usar o callback da API ao invés do frontend
-    AUTH0_CALLBACK_URL = f"{API_URL}/auth/callback"
-    
-    # Trocar código de autorização por tokens
-    base_callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
+    # Não redefinir variáveis importadas
+    callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
     
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
     token_payload = {
@@ -134,7 +134,7 @@ async def auth_callback(
         "client_id": AUTH0_CLIENT_ID,
         "client_secret": AUTH0_CLIENT_SECRET,
         "code": code,
-        "redirect_uri": base_callback_url
+        "redirect_uri": callback_url
     }
 
     token_response = requests.post(token_url, json=token_payload)
@@ -183,21 +183,39 @@ async def auth_callback(
         user.last_login = datetime.datetime.utcnow()
         db.commit()
     
-    # Definir cookies para autenticação
     # Usar o state como redirect_uri, se disponível, caso contrário, usar a variável de ambiente
     frontend_url = state or FRONTEND_URL
     
-    # Gerar um token JWT
-    token = str(user.id)  # Simplificado para este exemplo
+    # Criar um token JWT mais seguro para autenticação cruzada de domínios
+    from datetime import timedelta
+    from jose import jwt
     
-    # Para aplicações SPA, redirecionar para a página principal com o token
-    response = RedirectResponse(url=f"{frontend_url}?token={token}&user_id={user.id}&user_email={email}")
+    # Criar um token JWT com informações do usuário que expira em 7 dias
+    jwt_payload = {
+        "sub": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "picture": user.picture,
+        "exp": datetime.datetime.utcnow() + timedelta(days=7)
+    }
     
+    # Usar o secret key do middleware para assinar o token
+    from api.config.settings import MIDDLEWARE_SECRET_KEY
+    jwt_token = jwt.encode(jwt_payload, MIDDLEWARE_SECRET_KEY, algorithm="HS256")
+    
+    # Para aplicações SPA, redirecionar para a página principal com o token JWT
+    # Incluir todos os dados necessários nos parâmetros de consulta para acessibilidade cross-domain
+    response = RedirectResponse(
+        url=f"{frontend_url}?token={jwt_token}&user_id={user.id}&user_email={email}&user_name={name}"
+    )
+    
+    # Definir cookies também, mas ciente que em produção com domínios diferentes, 
+    # eles podem não funcionar devido a restrições de segurança do navegador
     response.set_cookie(
         key="user_id",
         value=str(user.id),
         httponly=True,
-        secure=True,
+        secure=True,  # Requer HTTPS
         samesite="lax"
     )
     
@@ -205,7 +223,16 @@ async def auth_callback(
         key="user_email",
         value=user.email,
         httponly=True,
-        secure=True,
+        secure=True,  # Requer HTTPS
+        samesite="lax"
+    )
+    
+    # Adicionar o token JWT também como cookie
+    response.set_cookie(
+        key="auth_token",
+        value=jwt_token,
+        httponly=True,
+        secure=True,  # Requer HTTPS
         samesite="lax"
     )
     
@@ -220,7 +247,7 @@ async def auth_token(
     Endpoint para trocar o código de autorização por tokens e criar uma sessão
     (Implementação alternativa para SPAs que não usam redirecionamento)
     """
-    base_callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
+    callback_url = AUTH0_CALLBACK_URL or f"{API_URL}/auth/callback"
     
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
     token_payload = {
@@ -228,7 +255,7 @@ async def auth_token(
         "client_id": AUTH0_CLIENT_ID,
         "client_secret": AUTH0_CLIENT_SECRET,
         "code": token_request.code,
-        "redirect_uri": base_callback_url
+        "redirect_uri": callback_url
     }
 
     token_response = requests.post(token_url, json=token_payload)
@@ -277,7 +304,23 @@ async def auth_token(
         user.last_login = datetime.datetime.utcnow()
         db.commit()
     
-    # Retornar dados do usuário e tokens
+    # Criar um token JWT com informações do usuário que expira em 7 dias
+    from datetime import timedelta
+    from jose import jwt
+    
+    jwt_payload = {
+        "sub": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "picture": user.picture,
+        "exp": datetime.datetime.utcnow() + timedelta(days=7)
+    }
+    
+    # Usar o secret key do middleware para assinar o token
+    from api.config.settings import MIDDLEWARE_SECRET_KEY
+    jwt_token = jwt.encode(jwt_payload, MIDDLEWARE_SECRET_KEY, algorithm="HS256")
+    
+    # Retornar dados do usuário, tokens do Auth0 e o JWT personalizado
     return {
         "user": {
             "id": user.id,
@@ -285,7 +328,8 @@ async def auth_token(
             "email": user.email,
             "picture": user.picture
         },
-        "auth0_tokens": token_data
+        "auth0_tokens": token_data,
+        "jwt_token": jwt_token
     }
 
 @router.get("/logout")

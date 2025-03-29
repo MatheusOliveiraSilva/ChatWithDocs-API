@@ -14,10 +14,16 @@ AUTH0_CALLBACK_URL = os.getenv("AUTH0_CALLBACK_URL")
 # Middleware Secret Key
 MIDDLEWARE_SECRET_KEY = os.getenv("MIDDLEWARE_SECRET_KEY", "default-secret-key")
 
+# Frontend URL para redirecionamentos
 FRONTEND_URL = os.getenv("FRONTEND_URL", "")
+API_URL = os.getenv("API_URL", "")
 
 # CORS Settings
-CORS_ORIGINS = [FRONTEND_URL]  # Substitua por origens específicas em produção
+CORS_ORIGINS = [
+    "http://localhost:5173",  # Local development
+    "https://chatwithdocs-front.vercel.app",  # Production frontend
+    os.getenv("FRONTEND_URL", ""),  # Dynamic frontend URL from env
+]
 CORS_METHODS = ["*"]
 CORS_HEADERS = ["*"]
 
@@ -33,4 +39,3 @@ S3_REGION_NAME = os.getenv("S3_REGION_NAME")
 S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", None)  # Para MinIO ou outro serviço compatível 
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-API_URL = os.getenv("API_URL")
