@@ -35,6 +35,7 @@
           { "name": "AUTH0_CLIENT_ID", "value": "${AUTH0_CLIENT_ID}" },
           { "name": "AUTH0_CLIENT_SECRET", "value": "${AUTH0_CLIENT_SECRET}" },
           { "name": "FRONTEND_URL", "value": "${FRONTEND_URL}" },
+          { "name": "API_URL", "value": "${API_URL}" },
           { "name": "ANTHROPIC_API_KEY", "value": "${ANTHROPIC_API_KEY}" },
           { "name": "OPENAI_API_KEY", "value": "${OPENAI_API_KEY}" },
           { "name": "S3_BUCKET_NAME", "value": "${S3_BUCKET_NAME}" },

@@ -59,6 +59,7 @@ jobs:
           sed -i "s|\${S3_SECRET_KEY}|${{ secrets.S3_SECRET_KEY }}|g" task-definition-template.json
           sed -i "s|\${S3_REGION}|${{ secrets.S3_REGION }}|g" task-definition-template.json
           sed -i "s|\${PINECONE_API_KEY}|${{ secrets.PINECONE_API_KEY }}|g" task-definition-template.json
+          sed -i "s|\${API_URL}|${{ secrets.API_URL }}|g" task-definition-template.json
           
       - name: Register new task definition
         id: register-task
