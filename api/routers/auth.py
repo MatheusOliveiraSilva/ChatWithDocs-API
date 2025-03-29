@@ -117,7 +117,7 @@ async def auth_callback(
     """
     Callback handler para processar o código de autorização Auth0 e criar sessão
     """
-
+ 
     AUTH0_CALLBACK_URL = FRONTEND_URL + "/auth/callback"
     # Trocar código de autorização por tokens
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
