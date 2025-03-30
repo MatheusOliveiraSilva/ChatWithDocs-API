@@ -86,11 +86,20 @@ class DocumentIngestor:
                 metadata
             )
             
-            # Criar nome do índice baseado no usuário
-            index_name = f"user{document.user_id}"
+            # Usar um único índice para toda a aplicação
+            index_name = "chatwithdocs"
             
-            # Namespace é o thread_id (será sanitizado pelo indexador)
-            namespace = document.thread_id
+            # Namespace no formato <user_id>-<thread_id>
+            namespace = f"{document.user_id}-{document.thread_id}"
+            
+            # Verificar se o namespace excede o limite de caracteres
+            max_namespace_length = 64
+            if len(namespace) > max_namespace_length:
+                # Calcular quanto do thread_id podemos manter
+                user_id_len = len(str(document.user_id))
+                # Reservar 1 caracter para o hífen
+                thread_id_max_len = max_namespace_length - user_id_len - 1
+                namespace = f"{document.user_id}-{document.thread_id[:thread_id_max_len]}"
             
             # Verificar se o índice existe e criá-lo se necessário
             sanitized_index = self.indexer.ensure_index_exists(index_name)
@@ -225,14 +234,22 @@ class DocumentIngestor:
             
             # Se não temos informações armazenadas, usar a lógica padrão
             if not pinecone_index or not pinecone_namespace:
-                # Criar nome do índice baseado no usuário
-                index_name = f"user{document.user_id}"
+                # Usar um único índice para toda a aplicação
+                pinecone_index = "chatwithdocs"
                 
-                # Namespace é o thread_id
-                namespace = document.thread_id
+                # Namespace no formato <user_id>-<thread_id>
+                namespace = f"{document.user_id}-{document.thread_id}"
                 
-                # Sanitizar nomes (mesmo processo usado na ingestão)
-                pinecone_index = self.indexer.sanitize_index_name(index_name)
+                # Verificar se o namespace excede o limite de caracteres
+                max_namespace_length = 64
+                if len(namespace) > max_namespace_length:
+                    # Calcular quanto do thread_id podemos manter
+                    user_id_len = len(str(document.user_id))
+                    # Reservar 1 caracter para o hífen
+                    thread_id_max_len = max_namespace_length - user_id_len - 1
+                    namespace = f"{document.user_id}-{document.thread_id[:thread_id_max_len]}"
+                
+                # Sanitizar nome do namespace
                 pinecone_namespace = self.indexer.sanitize_namespace(namespace)
             
             # Verificar se o índice existe antes de tentar acessá-lo

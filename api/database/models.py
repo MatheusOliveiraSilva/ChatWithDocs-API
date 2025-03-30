@@ -36,7 +36,6 @@ class ConversationThread(Base):
     thread_id = Column(String(255), nullable=False)
     thread_name = Column(String(255), nullable=False)
     messages = Column(JsonType, default=[])
-    # model_id = Column(String(50), default="gpt-4o")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_used = Column(DateTime, default=datetime.datetime.utcnow)
     
