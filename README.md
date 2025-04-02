@@ -2,7 +2,7 @@
 
 This is the backend service for the ChatWithDocs application, a document-based chatbot that uses Retrieval-Augmented Generation (RAG) to answer questions based on your uploaded documents.
 
-**Frontend application available at**: [https://chatwithdocs-front.vercel.app](https://chatwithdocs-front.vercel.app)
+**Frontend application available at**: [https://chatwithdocs-front.vercel.app](https://chatwithdocs-front.vercel.app) (not working right now, desactivated because of aws API billing, i'm saving money now D: ).
 
 ## System Architecture
 
